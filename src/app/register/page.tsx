@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
+import api from '@/lib/api';
 
 
 export default function RegisterPage() {
@@ -20,7 +21,7 @@ export default function RegisterPage() {
     formData.append('password', password);
 
     try {
-      await axios.post('http://localhost:8000/register', formData);
+      await api.post('/register', formData);
       setSuccess("Account created! Redirecting to login...");
       setTimeout(() => {
         window.location.href = '/login';

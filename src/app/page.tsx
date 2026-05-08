@@ -55,7 +55,7 @@ export default function Dashboard() {
   const handleUploadQuote = async (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await axios.post("http://localhost:8000/upload", formData);
+  const res = await api.post("/upload", formData);
   setSavedQuoteFilename(res.data.saved_as);  // backend now returns this
   alert(`Quote uploaded! Reference: ${res.data.saved_as}`);
 };
@@ -65,7 +65,7 @@ export default function Dashboard() {
   const newValue = window.prompt(`Edit ${field.replace("_", " ")}:`, currentValue);
   if (newValue !== null && newValue !== currentValue) {
     try {
-      const response = await axios.put(`http://localhost:8000/invoices/${id}`, {
+      const response = await api.put(`/invoices/${id}`, {
         [field]: newValue,
       });
       if (response.status === 200) {
@@ -131,8 +131,8 @@ const handleCompare = async () => {
 
   try {
     // Attach the filename as a query parameter in the URL
-    const res = await axios.post(
-      `http://localhost:8000/compare?quote_filename=${encodeURIComponent(savedQuoteFilename)}`, 
+    const res = await api.post(
+      `/compare?quote_filename=${encodeURIComponent(savedQuoteFilename)}`, 
       formData,
       {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -371,8 +371,8 @@ const handleCompare = async () => {
         {/* ✅ Link to archived original file */}
         {invoice.filename && (
           <a
-            href={`http://localhost:8000/originals/${invoice.filename}`}
-            target="_blank"
+            href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/originals/${invoice.filename}`}
+  target="_blank"
             rel="noopener noreferrer"
             className="bg-blue-50 text-blue-600 px-3 py-1 rounded border border-blue-200 text-sm font-medium hover:bg-blue-100"
           >

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 // import { Link } from 'lucide-react';
 import Link from 'next/link';
+import api from '@/lib/api';
 
 export default function LoginPage() {   {/* ✅ No props — Next.js pages don't receive them */}
   const [email, setEmail] = useState("");
@@ -16,8 +17,7 @@ export default function LoginPage() {   {/* ✅ No props — Next.js pages don't
     formData.append('password', password);
 
     try {
-      const res = await axios.post('http://localhost:8000/login', formData);
-
+      const res = await api.post('/login', formData);
       // ✅ Save token and name directly here — no prop needed
       localStorage.setItem('token', res.data.access_token);
       localStorage.setItem('userName', res.data.user_name);
