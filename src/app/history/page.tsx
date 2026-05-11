@@ -6,6 +6,8 @@ import api from "@/lib/api";
 interface InvoiceItem {
   id: number;
   description: string;
+  unit?: string; 
+  quantity?: number;
   amount: number;
 }
 
@@ -16,6 +18,7 @@ interface Invoice {
   date: string;
   confidence_score: number;
   filename: string;
+  excel_link?: string;
   items?: InvoiceItem[];
 }
 
@@ -27,8 +30,19 @@ export default function HistoryPage() {
   useEffect(() => {
     api.get("/history")
       .then((res) => { setHistory(res.data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if (err?.response?.status === 401) {
+          window.location.href = "/login";
+        }
+        setLoading(false);
+      });
   }, []);
+
+  const isInsurance = (items?: InvoiceItem[]) =>
+    items?.some(i =>
+      ["cgst", "sgst", "igst", "net premium", "stamp duty"]
+        .includes(i.description?.toLowerCase())
+    );
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -51,13 +65,14 @@ export default function HistoryPage() {
                   <th className="p-4">Date</th>
                   <th className="p-4">Confidence</th>
                   <th className="p-4 text-center">Details</th>
+                  <th className="p-4">Download</th>
                 </tr>
               </thead>
               <tbody>
                 {history.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center p-10 text-slate-400">
-                      No invoice history found.
+                    <td colSpan={6} className="text-center p-10 text-slate-400">
+                      No invoice history found. Upload an invoice from New Upload.
                     </td>
                   </tr>
                 ) : (
@@ -86,23 +101,56 @@ export default function HistoryPage() {
                         <td className="p-4 text-center text-slate-500">
                           {expandedId === invoice.id ? "▲" : "▼"}
                         </td>
+                        <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                          {invoice.excel_link && (
+                            <a
+                              href={invoice.excel_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-green-600 hover:text-green-800 text-sm font-medium"
+                            >
+                              📂 Excel
+                            </a>
+                          )}
+                        </td>
                       </tr>
+
                       {expandedId === invoice.id && (
                         <tr className="bg-slate-50">
-                          <td colSpan={5} className="p-6">
-                            <h3 className="font-bold text-slate-800 mb-3">Line Items</h3>
+                          <td colSpan={6} className="p-6">
+                            <div className="flex justify-between items-center mb-3 border-b pb-2">
+                              <h3 className="font-bold text-slate-800">
+                                {isInsurance(invoice.items) ? "Premium Breakdown" : "Line Items"}
+                              </h3>
+                              {invoice.filename && (
+                                <a
+                                  href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/originals/${invoice.filename}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-blue-50 text-blue-600 px-3 py-1 rounded border border-blue-200 text-sm font-medium hover:bg-blue-100"
+                                >
+                                  🔍 View Original
+                                </a>
+                              )}
+                            </div>
                             {invoice.items && invoice.items.length > 0 ? (
                               <table className="w-full text-sm border rounded-lg overflow-hidden">
                                 <thead className="bg-slate-200">
                                   <tr>
                                     <th className="text-left p-3">Description</th>
+                                    <th className="text-center p-3">Qty.</th>
                                     <th className="text-right p-3">Amount</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {invoice.items.map((item) => (
                                     <tr key={item.id} className="border-t">
-                                      <td className="p-3 text-slate-700">{item.description}</td>
+                                      <td className="p-3 text-slate-700">
+                                        {item.description?.length > 60
+                                          ? item.description.substring(0, 60) + "…"
+                                          : item.description}
+                                      </td>
+                                      <td className="p-3 text-center text-slate-500 text-xs">{item.quantity || "—"}</td>
                                       <td className="p-3 text-right font-medium">₹{item.amount}</td>
                                     </tr>
                                   ))}

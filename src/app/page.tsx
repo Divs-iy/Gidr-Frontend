@@ -7,7 +7,8 @@ import axios from "axios";
 interface InvoiceItem {
   id: number;
   description: string;
-  unit?: string;
+  unit?: string; 
+  quantity?: number;
   amount: number;
 }
 
@@ -33,7 +34,16 @@ export default function Dashboard() {
   const [comparisonResult, setComparisonResult] = useState<any>(null);
   const [quoteFile, setQuoteFile] = useState<File | null>(null);       // ✅ bring back
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
-  
+  const [invoiceFilename_saved, setInvoiceFilename_saved] = useState<string>("");
+  // ✅ Load saved comparison result from localStorage on mount
+useEffect(() => {
+  const saved = localStorage.getItem("gidr_comparison");
+  const savedQuote = localStorage.getItem("gidr_quote_filename");
+  const savedInvoice = localStorage.getItem("gidr_invoice_filename");
+  if (saved) setComparisonResult(JSON.parse(saved));
+  if (savedQuote) setSavedQuoteFilename(savedQuote);
+  if (savedInvoice) setInvoiceFilename_saved(savedInvoice);
+}, []);
 
   useEffect(() => {
     api
@@ -240,6 +250,9 @@ const handleCompare = async () => {
       { headers: { "Content-Type": "multipart/form-data" }, timeout: 120000 }
     );
     setComparisonResult(res.data);
+    localStorage.setItem("gidr_comparison", JSON.stringify(res.data));
+localStorage.setItem("gidr_quote_filename", savedQuoteFilename || "");
+localStorage.setItem("gidr_invoice_filename", invoiceFile?.name || "");
           } catch (err) {
     console.error("Comparison failed:", err);
     alert("Comparison failed — check console.");
@@ -250,7 +263,7 @@ const handleCompare = async () => {
         </button>
 
         {/* Result */}
-        {comparisonResult && (
+        {/* {comparisonResult && (
           <div className={`mt-5 p-4 rounded-lg border ${
             comparisonResult.status === "MATCH"
               ? "bg-green-50 border-green-200"
@@ -267,7 +280,14 @@ const handleCompare = async () => {
               ))}
             </ul>
           </div>
-        )}
+        )} */}
+        {comparisonResult && (
+  <AuditPanel
+  comparisonResult={comparisonResult}
+  quoteFilename={savedQuoteFilename || ""}
+  invoiceFilename={invoiceFile?.name || invoiceFilename_saved}
+/>
+)}
       </div>
       {/* END COMPARE PANEL */}
 
@@ -398,7 +418,7 @@ const handleCompare = async () => {
           <thead className="bg-slate-200">
             <tr>
               <th className="text-left p-3">Description</th>
-              <th className="text-center p-3">Unit</th> 
+              <th className="text-center p-3">Qty.</th> 
               <th className="text-right p-3">Amount</th>
             </tr>
           </thead>
@@ -406,6 +426,9 @@ const handleCompare = async () => {
             {invoice.items.map((item) => (
               <tr key={item.id} className="border-t">
                 <td className="p-3 text-slate-700">{item.description}</td>
+                <td className="p-3 text-center font-medium text-slate-800">
+                  {item.quantity || "—"}
+                </td>
                 <td className="p-3 text-right font-medium text-slate-800">
                   ₹{item.amount}
                 </td>
@@ -430,4 +453,260 @@ const handleCompare = async () => {
     </main>
   </div>
 );
+function AuditPanel({ comparisonResult, quoteFilename, invoiceFilename }: {
+  comparisonResult: any;
+  quoteFilename: string;
+  invoiceFilename: string;
+}) {
+  const buildAuditItems = () => {
+  const items: any[] = [];
+  const qItems = comparisonResult.quote_data?.line_items || [];
+  const iItems = comparisonResult.invoice_data?.line_items || [];
+
+  // Track which invoice items have been matched
+  const matchedInvoiceIndexes = new Set<number>();
+
+  // Process all quote items first
+  qItems.forEach((q: any) => {
+    const qAmt = Math.round((q.amount || 0) * 100);
+
+    // Try match by amount first
+    const iMatchIdx = iItems.findIndex((i: any, idx: number) =>
+      !matchedInvoiceIndexes.has(idx) &&
+      Math.abs(Math.round((i.amount || 0) * 100) - qAmt) < 2
+    );
+
+    if (iMatchIdx !== -1) {
+      matchedInvoiceIndexes.add(iMatchIdx);
+      items.push({
+        description: q.description,
+        quoted_price: q.amount,
+        invoiced_price: iItems[iMatchIdx].amount,
+        status: "MATCH",
+        reason: "Price matches quotation exactly.",
+        action: "APPROVED",
+        comment: ""
+      });
+    } else {
+      // Try match by description
+      const descMatchIdx = iItems.findIndex((i: any, idx: number) =>
+        !matchedInvoiceIndexes.has(idx) &&
+        i.description?.toLowerCase().trim() === q.description?.toLowerCase().trim()
+      );
+
+      if (descMatchIdx !== -1) {
+        matchedInvoiceIndexes.add(descMatchIdx);
+        const diff = Math.round(((iItems[descMatchIdx].amount || 0) - (q.amount || 0)) * 100) / 100;
+        const isMatch = Math.abs(diff) < 0.02;
+        items.push({
+          description: q.description,
+          quoted_price: q.amount,
+          invoiced_price: iItems[descMatchIdx].amount,
+          status: isMatch ? "MATCH" : "PRICE MISMATCH",
+          reason: isMatch
+            ? "Price matches quotation exactly."
+            : diff > 0
+              ? `Invoiced price is ₹${diff} higher than quoted price.`
+              : `Invoiced price is ₹${Math.abs(diff)} lower than quoted price.`,
+          action: isMatch ? "APPROVED" : "FLAGGED",
+          comment: ""
+        });
+      } else {
+        // Not found in invoice at all
+        items.push({
+          description: q.description,
+          quoted_price: q.amount,
+          invoiced_price: 0,
+          status: "MISSING IN INVOICE",
+          reason: "Item present in quote but missing from invoice.",
+          action: "FLAGGED",
+          comment: ""
+        });
+      }
+    }
+  });
+
+  // Only add truly unmatched invoice items as NOT IN QUOTE
+  iItems.forEach((i: any, idx: number) => {
+    if (!matchedInvoiceIndexes.has(idx) && (i.amount || 0) > 0) {
+      items.push({
+        description: i.description,
+        quoted_price: 0,
+        invoiced_price: i.amount,
+        status: "NOT IN QUOTE",
+        reason: "Item was never approved in the initial quotation.",
+        action: "FLAGGED",
+        comment: ""
+      });
+    }
+  });
+
+  return items;
+};
+
+  const [auditItems, setAuditItems] = React.useState(buildAuditItems);
+  const [saving, setSaving] = React.useState(false);
+  const [reportId, setReportId] = React.useState<number | null>(null);
+
+  const updateItem = (idx: number, field: string, value: string) => {
+    setAuditItems(prev => prev.map((item, i) =>
+      i === idx ? { ...item, [field]: value } : item
+    ));
+  };
+
+  const handleSaveAndDownload = async () => {
+  setSaving(true);
+  try {
+    const res = await api.post("/audit/save", {
+      quote_filename: quoteFilename,
+      invoice_filename: invoiceFilename,
+      items: auditItems
+    });
+    const id = res.data.report_id;
+    setReportId(id);
+
+    // ✅ Download with token in header via blob
+    const token = localStorage.getItem("token");
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const response = await fetch(`${baseUrl}/audit/report/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Gidr_Audit_Report_${id}.xlsx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Save failed:", err);
+    alert("Failed to save audit report.");
+  } finally {
+    setSaving(false);
+  }
+};
+
+  const flagged = auditItems.filter(i => i.action === "FLAGGED" && i.status !== "MATCH").length;
+  const totalDisputed = auditItems
+    .filter(i => i.action === "FLAGGED" && i.status !== "MATCH")
+    .reduce((sum, i) => sum + Math.abs((i.invoiced_price || 0) - (i.quoted_price || 0)), 0);
+
+  return (
+    <div className="mt-6">
+      {/* Summary bar */}
+      <div className="flex gap-4 mb-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 flex-1 text-center">
+          <p className="text-xs text-red-500 font-medium">Flagged Items</p>
+          <p className="text-2xl font-bold text-red-700">{flagged}</p>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 flex-1 text-center">
+          <p className="text-xs text-yellow-600 font-medium">Total Disputed</p>
+          <p className="text-2xl font-bold text-yellow-700">₹{totalDisputed.toFixed(2)}</p>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex-1 text-center">
+          <p className="text-xs text-green-600 font-medium">Matched Items</p>
+          <p className="text-2xl font-bold text-green-700">
+            {auditItems.filter(i => i.status === "MATCH").length}
+          </p>
+        </div>
+      </div>
+
+      {/* Audit table */}
+      <div className="overflow-x-auto rounded-xl border">
+        <table className="w-full text-sm border-collapse">
+          <thead className="bg-slate-800 text-white">
+            <tr>
+              <th className="p-3 text-left">Item Description</th>
+              <th className="p-3 text-right">Quoted (₹)</th>
+              <th className="p-3 text-right">Invoiced (₹)</th>
+              <th className="p-3 text-center">Status</th>
+              <th className="p-3 text-left">Reason</th>
+              <th className="p-3 text-center">Action</th>
+              <th className="p-3 text-left">Accountant Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {auditItems.map((item, idx) => (
+              <tr key={idx} className={`border-t ${
+                item.status === "MATCH" ? "bg-green-50" :
+                item.action === "APPROVED" ? "bg-yellow-50" :
+                "bg-red-50"
+              }`}>
+                <td className="p-3 text-slate-800 font-medium max-w-[200px]">
+                  {item.description}
+                </td>
+                <td className="p-3 text-right text-slate-700">
+                  {item.quoted_price > 0 ? `₹${item.quoted_price}` : "—"}
+                </td>
+                <td className="p-3 text-right text-slate-700">
+                  {item.invoiced_price > 0 ? `₹${item.invoiced_price}` : "—"}
+                </td>
+                <td className="p-3 text-center">
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                    item.status === "MATCH" ? "bg-green-200 text-green-800" :
+                    item.status === "PRICE MISMATCH" ? "bg-red-200 text-red-800" :
+                    item.status === "NOT IN QUOTE" ? "bg-purple-200 text-purple-800" :
+                    "bg-orange-200 text-orange-800"
+                  }`}>
+                    {item.status}
+                  </span>
+                </td>
+                <td className="p-3 text-slate-600 text-xs max-w-[200px]">{item.reason}</td>
+                <td className="p-3 text-center">
+                  {item.status !== "MATCH" && (
+                    <div className="flex gap-1 justify-center">
+                      <button
+                        onClick={() => updateItem(idx, "action", "FLAGGED")}
+                        className={`px-2 py-1 rounded text-xs font-bold transition ${
+                          item.action === "FLAGGED"
+                            ? "bg-red-500 text-white"
+                            : "bg-red-100 text-red-600 hover:bg-red-200"
+                        }`}
+                      >
+                        🔴 Flag
+                      </button>
+                      <button
+                        onClick={() => updateItem(idx, "action", "APPROVED")}
+                        className={`px-2 py-1 rounded text-xs font-bold transition ${
+                          item.action === "APPROVED"
+                            ? "bg-green-500 text-white"
+                            : "bg-green-100 text-green-600 hover:bg-green-200"
+                        }`}
+                      >
+                        🟢 Approve
+                      </button>
+                    </div>
+                  )}
+                  {item.status === "MATCH" && (
+                    <span className="text-green-600 text-xs font-semibold">✓ OK</span>
+                  )}
+                </td>
+                <td className="p-3">
+                  <input
+                    type="text"
+                    value={item.comment}
+                    onChange={(e) => updateItem(idx, "comment", e.target.value)}
+                    placeholder={item.status === "MATCH" ? "Optional note..." : "Add justification..."}
+                    className="w-full text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-blue-400"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Download button */}
+      <div className="mt-4 flex justify-end gap-3">
+        <button
+          onClick={handleSaveAndDownload}
+          disabled={saving}
+          className="bg-slate-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-700 disabled:bg-slate-300 flex items-center gap-2"
+        >
+          {saving ? "Saving..." : "📥 Download Excel Audit Data"}
+        </button>
+      </div>
+    </div>
+  );
+}
 }
