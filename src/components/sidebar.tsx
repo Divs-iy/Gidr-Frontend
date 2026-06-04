@@ -8,6 +8,7 @@ const Sidebar = () => {
   // const userName = typeof window !== 'undefined' ? localStorage.getItem('userName') : 'User';
   const [userName, setUserName] = useState('User');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [activeTab, setActiveTab] = useState<'invoice' | 'smart'>('invoice');
 
   useEffect(() => {
    const token = localStorage.getItem('token');
