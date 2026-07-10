@@ -1,5 +1,5 @@
 "use client";
-import { LayoutDashboard, Upload, History, UserCircle, LogOut, UploadCloud, FileText} from 'lucide-react';
+import { LayoutDashboard, Upload, History, UserCircle, LogOut, UploadCloud, FileText, Sparkles} from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 // import { LayoutDashboard, UploadCloud, History, LogOut } from 'lucide-react';
@@ -45,6 +45,10 @@ const Sidebar = () => {
 <Link href="/audits" className="flex items-center gap-3 p-3 hover:bg-slate-800 rounded transition">
   <FileText size={20} />
   <span>Audit Reports</span>
+</Link>
+<Link href="/vendor-intelligence" className="flex items-center gap-3 p-3 hover:bg-slate-800 rounded transition">
+  <Sparkles size={20} />
+  <span>Vendor Intelligence</span>
 </Link>
       </nav>
 

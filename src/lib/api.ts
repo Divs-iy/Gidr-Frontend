@@ -11,7 +11,7 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   if (config.url?.includes('/upload')) {
-    config.timeout = 120000; // 2 minutes max — should finish in ~10s now
+    config.timeout = 240000; // 2 minutes max — should finish in ~10s now
   }
 
   return config;

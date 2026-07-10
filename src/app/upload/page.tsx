@@ -4,6 +4,7 @@ import api from '@/lib/api';
 import Sidebar from '@/components/sidebar';
 import { Upload, Loader2, Zap, FileText } from 'lucide-react';
 import axios from 'axios';
+import IntelligenceAlerts from '@/components/Intelligencealerts';
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -130,6 +131,12 @@ export default function UploadPage() {
                 <p><span className="font-semibold">Total:</span> ₹{extractedData.total_amount}</p>
               </div>
             )}
+            {results && (
+  <IntelligenceAlerts
+    duplicateAlert={results.duplicate_alert}
+    anomalyAlert={results.anomaly_alert}
+  />
+)}
             {msg === "Excel Generated!" && results?.download_url && (
               <a
                 href={results.download_url}
