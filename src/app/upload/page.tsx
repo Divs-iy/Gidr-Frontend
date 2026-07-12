@@ -124,13 +124,52 @@ export default function UploadPage() {
               <p className="mt-4 text-center text-sm font-medium text-blue-600">{msg}</p>
             )}
             {extractedData && (
-              <div className="mt-6 p-4 bg-slate-50 rounded-xl border text-sm text-slate-700 space-y-1">
-                <p><span className="font-semibold">Vendor:</span> {extractedData.vendor_name}</p>
-                <p><span className="font-semibold">Invoice #:</span> {extractedData.invoice_number}</p>
-                <p><span className="font-semibold">Date:</span> {extractedData.date}</p>
-                <p><span className="font-semibold">Total:</span> ₹{extractedData.total_amount}</p>
-              </div>
-            )}
+  <div className="mt-6 space-y-3">
+    {/* ✅ Handwritten bill alert */}
+    {extractedData.document_type === "HANDWRITTEN_BILL" && (
+      <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-2">
+        <span className="text-lg"></span>
+        <div>
+          <p className="text-xs font-bold text-orange-700">Handwritten Bill Detected</p>
+          <p className="text-xs text-orange-600 mt-0.5">AI extracted this from handwriting. Please verify the details below before downloading.</p>
+        </div>
+      </div>
+    )}
+
+    {/* ✅ Low confidence warning */}
+    {extractedData.confidence_score > 0 && extractedData.confidence_score < 0.6 && (
+      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
+        <span className="text-lg">⚠️</span>
+        <div>
+          <p className="text-xs font-bold text-yellow-700">Low Confidence ({Math.round(extractedData.confidence_score * 100)}%)</p>
+          <p className="text-xs text-yellow-600 mt-0.5">Document may be unclear or low quality. Verify extracted data carefully.</p>
+        </div>
+      </div>
+    )}
+
+    {/* ✅ Translation notice */}
+    {extractedData.translated && (
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+        <span className="text-lg">🌐</span>
+        <div>
+          <p className="text-xs font-bold text-blue-700">Regional Language Detected</p>
+          <p className="text-xs text-blue-600 mt-0.5">Content translated to English automatically.</p>
+        </div>
+      </div>
+    )}
+
+    {/* Extracted data card */}
+    <div className="p-4 bg-slate-50 rounded-xl border text-sm text-slate-700 space-y-1">
+      <p><span className="font-semibold">Vendor:</span> {extractedData.vendor_name}</p>
+      <p><span className="font-semibold">Invoice #:</span> {extractedData.invoice_number}</p>
+      <p><span className="font-semibold">Date:</span> {extractedData.date}</p>
+      <p><span className="font-semibold">Total:</span> ₹{extractedData.total_amount}</p>
+      {extractedData.document_type && (
+        <p><span className="font-semibold">Type:</span> {extractedData.document_type.replace("_", " ")}</p>
+      )}
+    </div>
+  </div>
+)}
             {results && (
   <IntelligenceAlerts
     duplicateAlert={results.duplicate_alert}
@@ -149,6 +188,17 @@ export default function UploadPage() {
             )}
           </div>
         )}
+
+        {extractedData?.translated && (
+  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+    🌐 Content detected in regional language and translated to English automatically.
+  </div>
+)}
+{extractedData?.confidence_score < 0.6 && (
+  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-700">
+    ⚠️ Low confidence score — this may be a handwritten or low quality document. Please verify the extracted data.
+  </div>
+)}
 
         {/* SMART MODE */}
         {mode === "smart" && (
